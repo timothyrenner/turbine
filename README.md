@@ -267,7 +267,7 @@ Here's an example specification:
 
 ```clojure
 [:splatter :vector-in [[:exc1 (map #(str % "!"))]
-                       [:exc2 (map #(str % "!!"))]]
+                       [:exc2 (map #(str % "!!"))]]]
 ```
 
 This takes a vector of strings coming from `vector-in`, putting the first element onto `exc1` and the second onto `exc2`.
