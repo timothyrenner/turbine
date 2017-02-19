@@ -1,24 +1,30 @@
 (ns turbine.routes
     (:require [clojure.core.async :refer [<!! >!! thread alts!! chan]]))
 
-;;;; Define the hierarchy.
-(def route-hierarchy 
-    (-> (make-hierarchy)
-        (derive :scatter :fan-out)
-        (derive :splatter :fan-out)
-        (derive :select :fan-out)
-        (derive :union :fan-in)
-        (derive :gather :fan-in)))
+(defmulti xform-aliases first)
 
-(defmulti xform-aliases first :hierarchy #'route-hierarchy)
-
-(defmethod xform-aliases :fan-out [route-spec]
-    (into {} 
-        (map (fn [v] [(first v) (second v)]) 
+(defn- fan-out [route-spec]
+    (into {}
+        (map (fn [v] [(first v) (second v)])
              (nth route-spec 2))))
-                            
-(defmethod xform-aliases :fan-in [route-spec]
+
+(defn- fan-in [route-spec]
     (into {} [(nth route-spec 2)]))
+
+(defmethod xform-aliases :scatter [route-spec]
+    (fan-out route-spec))
+
+(defmethod xform-aliases :splatter [route-spec]
+    (fan-out route-spec))
+
+(defmethod xform-aliases :select [route-spec]
+    (fan-out route-spec))
+
+(defmethod xform-aliases :union [route-spec]
+    (fan-in route-spec))
+
+(defmethod xform-aliases :gather [route-spec]
+    (fan-in route-spec))
 
 (defmethod xform-aliases :in [route-spec]
     (into {} [(subvec route-spec 1)]))
