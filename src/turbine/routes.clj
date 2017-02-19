@@ -27,159 +27,136 @@
 ;;;; all of the collection functions applied to the spec consistent.
 (defmethod xform-aliases :sink [route-spec] {})
 
-(defn- scatter!
-    "Scatter the value of the in channel to out channels with the attached
-     transducers.
-
-    `in-chan` The input channel to read.
-
-    `out-chans` The outbound channels.
+(defmulti make-route 
+    "All methods take two arguments, `route-spec`, which is the route specifier, and
+    `chans`, which is a map of channel aliases to the channels themselves.
+    
+    The structure of the route specifier depends on the type of route itself -
+    consult the documentation for details.
     "
-    [in-chan out-chans]
-    (thread 
-        (loop []
-             (let [in-val (<!! in-chan)]
-                 (doseq [out-chan out-chans]
-                     (>!! out-chan in-val)))
-             (recur))))
+    (fn [route-spec chans] (first route-spec)))
 
-(defn- splatter!
-    "Take a vector value from the input channel and splats its values across
-     output channels with the attached transducers
-     (e.g. a vector [1 2 3] will write 1 to the first output
-     channel, 2 to the second, and 3 to the third). If the vector of input 
-     values or output transducers is longer than the other the longer vector is 
-     truncated (e.g. a vector [1 2 3] from the in channel will only write to the 
-     three or fewer output channels depending on the length of `out-chans`).
+(defmethod make-route :scatter
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+         ;; The outbound channel aliases are the first elements of the
+         ;; third part of the route specifier.
+          out-chans (map (fn [o] (chans (first o)))
+                         (nth route-spec 2))]
+        (thread 
+            (loop []
+                 (let [in-val (<!! in-chan)]
+                     (doseq [out-chan out-chans]
+                         (>!! out-chan in-val)))
+                (recur)))))
 
-    `in-chan` The input channel to receive the vector from.
+(defmethod make-route :splatter
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+          ;; The outbound channel aliases are the first elements of the 
+          ;; third part of the route specifier.
+          out-chans (map (fn [o] (chans (first o)))
+                         (nth route-spec 2))]
+        (thread 
+            (loop []
+                ;; Read the sequence from the in-channel.
+                (let [in-seq (<!! in-chan)]
+                    ;; Write each element to it's corresponding out-chan.
+                    (doseq [[out-chan out-val] (map vector out-chans in-seq)]
+                        (>!! out-chan out-val)))
+            (recur)))))
 
-    `out-chans` A vector of outbound channels.
+(defmethod make-route :select
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+          out-chans-with-selectors
+            ;; We need the out-channel alias (o) and the selector value (v).
+            ;; The middle element is the xform, which we don't need. 
+            (map (fn [[o _ v]] [(chans o) v])
+                 (nth route-spec 2))
+          selector-fn (nth route-spec 3)]
+        (thread 
+            (loop []
+                ;; Read a single value from in-chan.
+                (let [in-val (<!! in-chan)
+                      ;; Determine the selector value from selector-fn and 
+                      ;; in-val.
+                      in-selector-val (selector-fn in-val)]
+                    ;; Write in-val to output channels with a matching selector 
+                    ;; value.
+                    (doseq [[out-chan chan-selector-val] 
+                             out-chans-with-selectors]
+                        (when (= in-selector-val chan-selector-val)
+                              (>!! out-chan in-val))))
+                (recur)))))
+
+(defmethod make-route :gather
+    [route-spec chans]
+    (let [in-chans (map chans (second route-spec))
+          out-chan (chans (first (nth route-spec 2)))]
+        (thread
+            (loop []
+                ;; Read each value from in-chan.
+                (->> 
+                    (for [in-chan in-chans]
+                        (<!! in-chan))
+                    ;; Convert the values from a seq into a vector.
+                    vec
+                    ;; Write that vector to the output channel
+                    (>!! out-chan))
+                (recur)))))
+
+(defmethod make-route :union
+    [route-spec chans]
+    (let [in-chans (map chans (second route-spec))
+          out-chan (chans (first (nth route-spec 2)))]
+        (thread 
+            (loop []
+                ;; Read from any of the input channels.
+                (let [[in-val _] (alts!! in-chans)]
+                    ;; Write the value to the output channel.
+                    (>!! out-chan in-val))
+                (recur)))))
+
+(defmethod make-route :sink
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+          sink-fn (nth route-spec 2)]
+        (thread 
+            (loop []
+                (let [in (<!! in-chan)]
+                    (sink-fn in))
+                (recur)))))
+
+(defn make-topology 
+    "Builds the topology from the provided specifier.
+
+    `spec` The topology specifier, as a vector of route specifiers.
+
+    There are six built-in route specifiers. These are their general forms:
+
+    ```clojure
+    [:scatter in-alias [out-specifier1 out-specifier2 ...]]
+    [:union [in-alias1 in-alias2 ...] out-specifier]
+    [:gather [in-alias1 in-alias2 ...] out-specifier]
+    [:select in-alias 
+             [out-specifier-and-selector1
+              out-specifier-and-selector2 ...]
+             selector-fn]
+    [:splatter in-alias [out-specifier1 out-specifier2 ...]]
+    [:in in-specifier]
+    [:sink in-alias sink-fn]
+
+    Consult the documentation for specifics on what these routes do.
+    ```
     "
-    [in-chan out-chans]
-    (thread 
-         (loop []
-             ;; Read the sequence from the in-channel.
-            (let [in-seq (<!! in-chan)]
-                 ;; Write each element to it's corresponding out-chan.
-                 (doseq [[out-chan out-val] (map vector out-chans in-seq)]
-                    (>!! out-chan out-val)))
-            (recur))))
-
-(defn- select!
-    "Takes a value from the in-channel and passes it to one or more output
-     channels depending on the value of the selector.
-   
-    `in-chan` The input channel.
-   
-    `out-chans-with-selectors` A vector of pairs: 
-    `[output-chan selector-value]`, passing the input value to any 
-    channels for which `(= selector-value (selector-fn value))` is `true`.
-
-    `selector-fn` The function applied to the incoming value which is
-    then matched to the selector values attached to the outbound channels.
-    "
-    [in-chan out-chans-with-selectors selector-fn]
-    (thread 
-        (loop []
-            ;; Read a single value from in-chan.
-            (let [in-val (<!! in-chan)
-                ;; Determine the selector value from selector-fn and in-val.
-                in-selector-val (selector-fn in-val)]
-                ;; Write in-val to output channels with a matching selector 
-                ;; value.
-                (doseq [[out-chan chan-selector-val] 
-                        out-chans-with-selectors]
-                    (when (= in-selector-val chan-selector-val)
-                    (>!! out-chan in-val))))
-            (recur))))
-
-(defn- gather!
-    "Take a value from each input channel and concatenate them into a vector.
-    This route will block until a value from each input arrives.
-
-    `in-chans` A sequence of input channels.
-
-    `out-chan` The outbound channel.
-    "
-    [in-chans out-chan]
-    (thread
-        (loop []
-            ;; Read each value from in-chan.
-            (->> 
-                (for [in-chan in-chans]
-                    (<!! in-chan))
-                ;; Convert the values from a seq into a vector.
-                vec
-                ;; Write that vector to the output channel
-                (>!! out-chan))
-            (recur))))
-
-(defn- union!
-    "Take a value from any one of several input channels and writes it to the
-    output channel.
-
-    `in-chans` A sequence of input channels.
-
-    `out-chan` The outbound channel.
-    "
-    [in-chans out-chan]
-    (thread 
-        (loop []
-            ;; Read from any of the input channels.
-            (let [[in-val _] (alts!! in-chans)]
-                ;; Write the value to the output channel.
-                (>!! out-chan in-val))
-            (recur))))
-
-(defn- sink!
-    "Apply a callback to the input channel, terminating this leaf of the DAG.
-
-    `in-chan` The input channel.
-
-    `sink-fn` The function to call on the input value.
-    "
-    [in-chan sink-fn]
-    (thread 
-        (loop []
-            (let [in (<!! in-chan)]
-                (sink-fn in))
-            (recur))))
-
-(defn make-topology [spec]
+    [spec]
     (let [xforms (into {} (map xform-aliases spec))
-                 chans (into {} (zipmap (keys xforms) 
-                                        (map #(chan 5 %) (vals xforms))))]
-        ;; TODO:
-        ;; Look into an extensible routing method to allow for custom routes.
-        ;; Multimethod is probably simplest, with a macro wrapper to enclose
-        ;; the route function in the threaded loop.
+          chans (into {} (zipmap (keys xforms) 
+                                 (map #(chan 5 %) (vals xforms))))]
         ;; Route all of the specifiers except the inputs.
         (doseq [rspec (remove (fn [v] (= :in (first v))) spec)]
-            
-            (case (first rspec)
-                
-                :scatter (scatter! (chans (second rspec))
-                                   (map (fn [o] (chans (first o))) 
-                                                (nth rspec 2)))
-                
-                :splatter (splatter! (chans (second rspec))
-                                     (map (fn [o] (chans (first o))) 
-                                                  (nth rspec 2)))
-                
-                :select (select! (chans (second rspec))
-                                 (map (fn [[o _ v]] [(chans o) v]) 
-                                      (nth rspec 2))
-                                      (nth rspec 3))
-                
-                :union (union! (map chans (second rspec))
-                               (chans (first (nth rspec 2))))
-
-                :gather (gather! (map chans (second rspec))
-                                 (chans (first (nth rspec 2))))
-
-                :sink (sink! (chans (second rspec)) (nth rspec 2))))
-
+            (make-route rspec chans))
         ;; Now grab all of the inputs and put them in the entry point functions.
         (map (fn [a] 
                 (let [c (chans (second a))]
