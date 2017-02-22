@@ -82,6 +82,29 @@
 				  truth #{"hello!" "There!!"}]
 					(is (= truth answer)))))
 
+	(testing "Properly creates a topology with a spread route."
+		(let [output-chan (chan 5) ; Landing point for the output.
+			  spread-in ; Make the topology.
+			  	(first
+				  	(make-topology
+					  	[[:in :in1 (map identity)]
+						 [:spread :in1 [[:out1 single-!-xform]
+						 				[:out2 double-!-xform]]]
+						 [:sink :out1 (fn [v] (>!! output-chan v))]
+						 [:sink :out2 (fn [v] (>!! output-chan v))]]))]
+			;; Feed the input values into the topology.
+			(spread-in "hello")
+			(is (= (<!! output-chan) "hello!"))
+
+			(spread-in "hello")
+			(is (= (<!! output-chan) "hello!!"))
+
+			(spread-in "there")
+			(is (= (<!! output-chan) "there!"))
+
+			(spread-in "there")
+			(is (= (<!! output-chan) "there!!"))))
+
 	(testing "Properly creates topology with a union route."
 		(let [output-chan (chan 5) ; Landing point for the output.
 			  union-in ; Make the topology, defined as it's input function.

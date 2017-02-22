@@ -20,6 +20,9 @@
 (defmethod xform-aliases :select [route-spec]
     (fan-out route-spec))
 
+(defmethod xform-aliases :spread [route-spec]
+    (fan-out route-spec))
+
 (defmethod xform-aliases :union [route-spec]
     (fan-in route-spec))
 
@@ -96,6 +99,23 @@
                               (>!! out-chan in-val))))
                 (recur)))))
 
+(defmethod make-route :spread
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+          ;; Create an infinite (lazy) sequence of out channels to use in the
+          ;; loop construct.
+          out-chans (cycle (map (fn [o] (chans (first o)))
+                           (nth route-spec 2)))]
+        (thread
+            ;; The loop is initialized with the full out-chans sequence.
+            (loop [out-chan-cycle out-chans]
+                (let [in-val (<!! in-chan)]
+                    ;; Drop the input value onto whatever channel is first in
+                    ;; the cycle.
+                    (>!! (first out-chan-cycle) in-val))
+                ;; Advance the loop by cycling to the next channel.
+                (recur (next out-chan-cycle))))))
+
 (defmethod make-route :gather
     [route-spec chans]
     (let [in-chans (map chans (second route-spec))
@@ -149,6 +169,7 @@
              [out-specifier-and-selector1
               out-specifier-and-selector2 ...]
              selector-fn]
+    [:spread in-alias [out-specifier1 out-specifier2 ...]]
     [:splatter in-alias [out-specifier1 out-specifier2 ...]]
     [:in in-specifier]
     [:sink in-alias sink-fn]

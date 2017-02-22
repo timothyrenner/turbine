@@ -37,6 +37,14 @@
 		 [:sink :exc1 println]
 		 [:sink :exc2 println]])))
 
+(defn spread-demo []
+	(first (make-topology
+		[[:in :in1 identity-xform]
+		 [:spread :in1 [[:exc1 single-!-xform]
+		 				[:exc2 double-!-xform]]]
+		 [:sink :exc1 #(println (str "Left: " %))]
+		 [:sink :exc2 #(println (str "Right: " %))]])))
+
 (defn union-demo []
 	(first (make-topology
 		[[:in :in1 identity-xform]

@@ -149,7 +149,7 @@ There are three fundamental routes (with no embedded logic), and a couple more I
 A composite route can be emulated with a fundamental route and certain transducers on the output channels.
 For reasons related to both performance and conceptual separation of concerns it can sometimes make more sense to embed the logic in the route.
 
-This library has three fundamental routes and two composite routes already implemented.
+This library has three fundamental routes and three composite routes already implemented.
 
 There are also two special routes for inputs and sinks.
 They're pretty easy.
@@ -254,6 +254,8 @@ This takes an inbound integer message and routes it to the `:evens` channel if t
 
 Note that this can be implemented with a scatter route by attaching `filter` transducers to each of the outbound channels, which makes it a composite route according to the vocabulary I made up.
 
+**NOTE** In a future version the `selector-value` argument of the outbound channel specifier will be optional, and the `selector-fn` values will be hashed to select the outbound channel.
+
 #### Splatter
 
 The splatter route is a composite route that receives vector messages and "splats" each element of the vector onto an output channel.
@@ -281,6 +283,25 @@ This takes a vector of strings coming from `vector-in`, putting the first elemen
 This route is a composite route because it can be implemented by using `scatter` and `map` transducers that select each element of the vector.
 If there are more elements in the input vector than there are output channels then the vector is truncated.
 If there are more output channels than elements in the input vector then only channels corresponding to those elements are written to.
+
+#### Spread
+
+The spread route is a special case of select that takes the value on the inbound channel and places it onto one of the outbound channels.
+It selects the outbound channel based on a round robin scheduler.
+This route can be used to distribute computational workload amongst independent threads of execution.
+
+```clojure
+[:spread in-chan-alias [out-chan-specifier1 out-chan-specifier2 ...]]
+```
+
+The outbound channel specifiers are normal specifiers.
+
+```clojure
+[:spread :in1 [[:out-chan-1 (map some-slow-function)]
+               [:out-chan-2 (map some-slow-function)]]]
+```
+
+This takes values from `:in1` and alternates between `:out-chan-1` and `:out-chan-2`, which is good because I get the impression that the outbound transducers have a pretty slow function attached to them.
 
 #### In
 
@@ -417,6 +438,19 @@ As previously mentioned, this can be done with scatter and filter.
                   [:exc2 (map #(str % "!!")) false]]
             ;; This selector function is boolean, but it doesn't have to be.
             (fn [x] (Character/isLowerCase (first x)))]
+   [:sink :exc1 println]
+   [:sink :exc2 println]])
+```
+
+### Spread
+
+This topology takes a single value and alternates between appending one and two exclamation points.
+
+```clojure
+(make-topology
+  [[:in :in1 (map identity)]
+   [:spread :in1 [[:exc1 (map #(str % "!"))]
+                  [:exc2 (map #(str % "!!"))]]]
    [:sink :exc1 println]
    [:sink :exc2 println]])
 ```
