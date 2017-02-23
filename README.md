@@ -473,8 +473,9 @@ This topology can also be built with a composition of `map` and `cat` using no r
 
 ## Contents
 
-The package currently contains two namespaces: `turbine.routes` and `turbine.demos`.
-`turbine.routes` is the core of the library, containing all of the logic for building topologies and establishing the routes.
+The package currently contains three namespaces: `turbine.core`, `turbine.routes`, `turbine.demos`.
+`turbine.core` contains the topology building machinery.
+`turbine.routes` is the meat of the library, containing all of the logic for establishing the routes.
 `turbine.demos` contains all of the topologies in the "Examples" section with functions to return the entry points.
 It's designed for interactive use in the REPL.
 

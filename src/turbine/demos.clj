@@ -1,6 +1,7 @@
 (ns turbine.demos
     (:require [clojure.core.async :refer [chan]]
-              [turbine.routes :refer :all]))
+              [turbine.routes :refer :all]
+			  [turbine.core :refer :all]))
 
 ;;;; HELPER TRANSDUCERS.
 ;;;; Note that if the transducers are stateful it's better to def a function
@@ -12,7 +13,7 @@
 (def identity-xform (map identity))
 
 ;;;; DEMO FUNCTIONS. EACH FUNCTION RETURNS AN ENTRY POINT TO THE TOPOLOGY.
-(defn scatter-demo []
+(defn scatter-demo [] 
 	(first (make-topology 
 		[[:in :in1 identity-xform]
 		 [:scatter :in1 [[:exc1 single-!-xform]

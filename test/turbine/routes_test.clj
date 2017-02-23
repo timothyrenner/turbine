@@ -1,6 +1,7 @@
 (ns turbine.routes-test
 	(:require [clojure.core.async :refer [<!! >!! chan]]
 			  [turbine.routes :refer :all]
+			  [turbine.core :refer :all]
 			  [clojure.test :refer :all]))
 
 (def single-!-xform (map #(str % "!")))
