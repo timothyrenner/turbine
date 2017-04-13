@@ -1,5 +1,5 @@
 (ns turbine.routes
-    (:require [clojure.core.async :refer [<!! >!! thread alts!! chan]]))
+    (:require [clojure.core.async :refer [<!! >!! thread alts!! chan close!]]))
 
 (defmulti xform-aliases first)
 
@@ -54,10 +54,16 @@
                          (nth route-spec 2))]
         (thread 
             (loop []
-                 (let [in-val (<!! in-chan)]
-                     (doseq [out-chan out-chans]
-                         (>!! out-chan in-val)))
-                (recur)))))
+                ;; The loop recursion is contained in when-let, which exits if
+                ;; the upstream in-chan is closed.
+                (when-let [in-val (<!! in-chan)]
+                    (doseq [out-chan out-chans]
+                        (>!! out-chan in-val))
+                     ;; Continue the loop after sending the input downstream.
+                     (recur)))
+            ;; After the loop terminates, close the downstream channels.
+            (doseq [out-chan out-chans]
+                (close! out-chan)))))
 
 (defmethod make-route :splatter
     [route-spec chans]
@@ -69,11 +75,14 @@
         (thread 
             (loop []
                 ;; Read the sequence from the in-channel.
-                (let [in-seq (<!! in-chan)]
+                (when-let [in-seq (<!! in-chan)]
                     ;; Write each element to it's corresponding out-chan.
                     (doseq [[out-chan out-val] (map vector out-chans in-seq)]
-                        (>!! out-chan out-val)))
-            (recur)))))
+                        (>!! out-chan out-val))
+                    (recur)))
+            ;; After the loop terminates, close the downstream channels.
+            (doseq [out-chan out-chans]
+                (close! out-chan)))))
 
 (defmethod make-route :select
     [route-spec chans]
@@ -87,17 +96,20 @@
         (thread 
             (loop []
                 ;; Read a single value from in-chan.
-                (let [in-val (<!! in-chan)
-                      ;; Determine the selector value from selector-fn and 
-                      ;; in-val.
-                      in-selector-val (selector-fn in-val)]
-                    ;; Write in-val to output channels with a matching selector 
-                    ;; value.
-                    (doseq [[out-chan chan-selector-val] 
-                             out-chans-with-selectors]
-                        (when (= in-selector-val chan-selector-val)
-                              (>!! out-chan in-val))))
-                (recur)))))
+                (when-let [in-val (<!! in-chan)]
+                           ;; Determine the selector value from selector-fn and 
+                           ;; in-val.
+                    (let [in-selector-val (selector-fn in-val)]
+                        ;; Write in-val to output channels with a matching selector 
+                        ;; value.
+                        (doseq [[out-chan chan-selector-val] 
+                                 out-chans-with-selectors]
+                            (when (= in-selector-val chan-selector-val)
+                                  (>!! out-chan in-val)))
+                    (recur))))
+            ;; After the loop exits, close the downstream channels.
+            (doseq [[out-chan _] out-chans-with-selectors]
+                (close! out-chan)))))
 
 (defmethod make-route :spread
     [route-spec chans]
@@ -109,12 +121,15 @@
         (thread
             ;; The loop is initialized with the full out-chans sequence.
             (loop [out-chan-cycle out-chans]
-                (let [in-val (<!! in-chan)]
+                (when-let [in-val (<!! in-chan)]
                     ;; Drop the input value onto whatever channel is first in
                     ;; the cycle.
-                    (>!! (first out-chan-cycle) in-val))
-                ;; Advance the loop by cycling to the next channel.
-                (recur (next out-chan-cycle))))))
+                    (>!! (first out-chan-cycle) in-val)
+                    ;; Advance the loop by cycling to the next channel.
+                    (recur (next out-chan-cycle))))
+            ;; After the loop exits, close the downstream channels.
+            (doseq [out-chan out-chans]
+                (close! out-chan)))))
 
 (defmethod make-route :gather
     [route-spec chans]
@@ -150,8 +165,9 @@
           sink-fn (nth route-spec 2)]
         (thread 
             (loop []
-                (let [in (<!! in-chan)]
-                    (sink-fn in))
-                (recur)))))
+                ;; When the upstream channel gives nil, end the loop.
+                (when-let [in (<!! in-chan)]
+                    (sink-fn in)
+                    (recur))))))
 
 
