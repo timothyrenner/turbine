@@ -137,15 +137,16 @@
           out-chan (chans (first (nth route-spec 2)))]
         (thread
             (loop []
-                ;; Read each value from in-chan.
-                (->> 
-                    (for [in-chan in-chans]
-                        (<!! in-chan))
-                    ;; Convert the values from a seq into a vector.
-                    vec
-                    ;; Write that vector to the output channel
-                    (>!! out-chan))
-                (recur)))))
+                (let [in-vals (for [in-chan in-chans] (<!! in-chan))]
+                      (when (not-any? nil? in-vals)
+                            ;; Read each value from in-chan.
+                            (->> in-vals
+                                ;; Convert the values from a seq into a vector.
+                                vec
+                                ;; Write that vector to the output channel
+                                (>!! out-chan))
+                                (recur))))
+            (close! out-chan))))
 
 (defmethod make-route :union
     [route-spec chans]
