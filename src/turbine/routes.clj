@@ -153,12 +153,17 @@
     (let [in-chans (map chans (second route-spec))
           out-chan (chans (first (nth route-spec 2)))]
         (thread 
-            (loop []
+            (loop [in in-chans]
                 ;; Read from any of the input channels.
-                (let [[in-val _] (alts!! in-chans)]
-                    ;; Write the value to the output channel.
-                    (>!! out-chan in-val))
-                (recur)))))
+                (let [[in-val in-chan] (alts!! in)]
+                    (if-not (nil? in-val)
+                        ;; Write to the output if the input isn't nil.
+                        (do
+                            (>!! out-chan in-val)
+                            (recur in))
+                        ;; Otherwise drop the channel and keep reading.
+                        (recur (remove #{in-chan} in)))))
+            (close! out-chan))))
 
 (defmethod make-route :sink
     [route-spec chans]
