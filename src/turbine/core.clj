@@ -1,6 +1,6 @@
 (ns turbine.core
     (:require [turbine.routes :refer [xform-aliases make-route]]
-              [clojure.core.async :refer [chan >!!]]))
+              [clojure.core.async :refer [chan >!! close!]]))
 
 ;;;; TODO: UNIT TEST.
 (defmacro clone-channel [[alias transducer & rest] n]
@@ -17,6 +17,16 @@
             ;; apply vector is the standard way of bringing a seq into a vector.
             ;; This merges the additional elements in rest with the new vector.
             (apply vector (-> alias name (str x) keyword) transducer rest))])
+
+;;;; TODO: Unit test.
+(defn- make-in [input-chan]
+    (fn [v]
+        (if-not 
+            ;; Use a namespaced keyword as the sentinel so only way to apply
+            ;; this is through functions in this namespace.
+            (= v ::close)
+            (>!! input-chan v)
+            (close! input-chan))))
 
 (defn make-topology 
     "Builds the topology from the provided specifier.
@@ -49,7 +59,10 @@
         (doseq [rspec (remove (fn [v] (= :in (first v))) spec)]
             (make-route rspec chans))
         ;; Now grab all of the inputs and put them in the entry point functions.
-        (map (fn [a] 
-                (let [c (chans (second a))]
-                    #(>!! c  %)))
-             (filter (fn [s] (= (first s) :in)) spec))))
+        (->> (filter (fn [s] (= (first s) :in)) spec)
+             ;; Grab the second element (the channel alias).
+             (map second)
+             ;; Extract the actual channel.
+             (map chans)
+             ;; Make the "in" function.
+             (map make-in))))
