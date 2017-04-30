@@ -380,6 +380,21 @@ For example, this function could be used as a callback, be placed in a go-loop, 
 
 I do have plans for making `make-topology` return the function directly when there's only one entry point into the topology for convenience.
 
+In addition to creating topologies, turbine also has a function for closing them.
+This will close all of the async channels and flush routes that maintain state (when they're implemented).
+The function is called - and this _will_ shock you - `close-topology`.
+Pass it all of the input functions to the topology you want to close and it does the rest.
+To close the above topology, simply call
+
+```clojure
+(close-topology entry-points)
+```
+
+Under the hood `close-topology` passes a sentinel value to the input functions, directing them to close their downstream async channels.
+The routes have logic to listen to when the input channels close, and they in turn close their output channels.
+This ensures all of the channels flush their in-flight values before they close the downstream processors because the `nil` that a closed channel returns only gets pulled _after_ the queue is empty.
+
+
 ## Examples
 
 Here are some topology examples for each of the routes.
@@ -499,6 +514,6 @@ There are a number of things to do before an "official" release.
 
 1. Create a `defroute` macro or function (if I can get away with it) for custom routing.
 2. Make transducers optional in the topology specification.
-3. Enable batch computation.
+3. ~~Enable batch computation by creating a topology closing mechanism.~~
 4. Transducers and routes for aggregations and joins.
 5. A command line interface.
