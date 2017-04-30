@@ -66,3 +66,14 @@
              (map chans)
              ;; Make the "in" function.
              (map make-in))))
+
+(defn close-topology [input-fns]
+    """ Closes out the topology. In-flight messages will complete before 
+        channels are closed.
+
+        `input-fns` The input functions for the topology. If this is not all of
+        the functions that define the topology there won't be an error, but it
+        won't fully close.
+    """
+    (doseq [input-fn input-fns]
+        (input-fn ::close)))

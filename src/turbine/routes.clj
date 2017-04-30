@@ -37,8 +37,8 @@
 (defmethod xform-aliases :sink [route-spec] {})
 
 (defmulti make-route 
-    "All methods take two arguments, `route-spec`, which is the route specifier, and
-    `chans`, which is a map of channel aliases to the channels themselves.
+    "All methods take two arguments, `route-spec`, which is the route specifier,
+    and `chans`, which is a map of channel aliases to the channels themselves.
     
     The structure of the route specifier depends on the type of route itself -
     consult the documentation for details.
@@ -161,8 +161,12 @@
                         (do
                             (>!! out-chan in-val)
                             (recur in))
-                        ;; Otherwise drop the channel and keep reading.
-                        (recur (remove #{in-chan} in)))))
+                        ;; Otherwise drop the channel and keep reading if there
+                        ;; are more channels.
+                        (let [remaining-chans (remove #{in-chan} in)]
+                            (when-not 
+                                (empty? remaining-chans)
+                                (recur remaining-chans))))))
             (close! out-chan))))
 
 (defmethod make-route :sink
