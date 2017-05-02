@@ -32,6 +32,9 @@
 (defmethod xform-aliases :in [route-spec]
     (into {} [(subvec route-spec 1)]))
 
+(defmethod xform-aliases :collect [route-spec]
+    (fan-in route-spec))
+
 ;;;; There are no aliases in a sinker, but they're in the spec, so this makes
 ;;;; all of the collection functions applied to the spec consistent.
 (defmethod xform-aliases :sink [route-spec] {})
@@ -180,4 +183,20 @@
                     (sink-fn in)
                     (recur))))))
 
-
+(defmethod make-route :collect
+    [route-spec chans]
+    (let [in-chan (chans (second route-spec))
+          out-chan (chans (first (nth route-spec 2)))
+          reducer (nth route-spec 3)
+          ;; Wrap the accumulator in a volatile.
+          accumulator (volatile! (nth route-spec 4))]
+        (thread
+            (loop []
+                ;; Update the accumulator with the new value.
+                (when-let [in (<!! in-chan)]
+                    (vswap! accumulator reducer in)
+                    (recur)))
+            ;; Flush the accumulator when the topology closes.
+            (>!! out-chan @accumulator)
+            ;; Close the output channel.
+            (close! out-chan))))

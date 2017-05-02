@@ -170,4 +170,26 @@
 			;; NOTE: This test condition is incomplete - it does not test that
 			;; _all_ of the channels in the topology have closed.
 			(close-topology [gather-in])
-			(is (= false (gather-in "hello"))))))
+			(is (= false (gather-in "hello")))))
+			
+	(testing "Properly creates a topology with a collect route."
+		(let [output-chan (chan 5)
+			  collect-in ; Make the topology.
+			  	(first
+				  (make-topology
+				  	[[:in :in1 (map identity)]
+					 [:collect :in1 [:out (map identity)] 
+					 		   (fn [a v] (assoc a v (inc (a v 0)))) {}]
+					 [:sink :out (fn [v] (>!! output-chan v))]]))]
+			;; Feed a couple of input values into the topology.
+			(collect-in "hi")
+			(collect-in "hi")
+			(collect-in "there")
+			;; Close the topology to flush the collector.
+			(close-topology [collect-in])
+			;; Ensure the topology is closed.
+			(is (= false (collect-in "hello")))
+			;; Read and validate the output of the topology.
+			(let [answer (<!! output-chan)
+				  truth {"hi" 2 "there" 1}]
+				(is (= truth answer))))))
