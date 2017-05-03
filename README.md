@@ -145,13 +145,13 @@ The reason is that transducer states are typically (though not necessarily) `vol
 ### Routes
 
 Routes are the switchpoints that transfer messages between channels asynchronously.
-There are three fundamental routes (with no embedded logic), and a couple more I consider to be "composite" routes.
+There are three fundamental routes (with no embedded logic), and a few more I consider to be "composite" routes.
 A composite route can be emulated with a fundamental route and certain transducers on the output channels.
 For reasons related to both performance and conceptual separation of concerns it can sometimes make more sense to embed the logic in the route.
 
 This library has three fundamental routes and three composite routes already implemented.
 
-There are also two special routes for inputs and sinks.
+There are also three special routes for inputs, sinks, and reductions.
 They're pretty easy.
 
 ***Currently these are the only routes available, but I do plan on implementing a means of adding custom routes.***
@@ -318,6 +318,38 @@ As an example, the following input increments any values passed into the topolog
 ```
 
 I'll discuss this a little later, but the number of `in` routes determines the number of input functions returned when the topology is built.
+
+#### Collect
+
+The collect specifier is built specifically for batch processing.
+It acts as a reducer, holding the accumulator until the topology is closed before sending it downstream.
+
+```clojure
+[:collect in-chan-alias out-chan specifier reducer-fn initial-accumulator]
+```
+
+Here there are two additional elements beyond the input alias and the output specifier: the reducer function and initial accumulator.
+The reducer function is literally a reducer: it takes two arguments, and accumulator and a new value.
+Examples of reducers:
+
+```clojure
+(fn [a v] (+ a v)) ;; Sum.
+(fn [a v] (assoc v (inc (a v 0)))) ;; Count by key.
+(fn [a v] (max a v)) ;; Max value.
+(fn [a v] (min a v)) ;; Min value.
+```
+The initial accumulator is ... the initial value of the accumulator.
+
+Here's a concrete example:
+
+```clojure
+[:collect :integers-in [:max-integer-out (map identity)]
+          (fn [a v] (max a v)) 0]
+```
+
+This route reads the integers from the `:integers-in` channel and accumulates the maximum value.
+The important thing to understand about this route is that _it holds onto the accumulator until the topology is closed_.
+Once the topology is closed with `close-topology`, the value of the accumulator (`a` in the function above) is passed to the `:max-integer-out` channel to the rest of the topology.
 
 #### Sink
 
@@ -486,6 +518,20 @@ This topology can also be built with a composition of `map` and `cat` using no r
    [:sink :ident println]])
 ```
 
+### Collect
+
+This topology reads integers, storing the maximum value.
+When the topology is closed, the maximum value is printed.
+
+```clojure
+;; Doesn't do anything until close-topology is called.
+(make-topology
+  [[:in :in1 (map identity)]
+   [:collect :in1 [:out (map identity)]
+             (fn [a v] (max a v)) 0]
+   [:sink :out println]])
+```
+
 ## Contents
 
 The package currently contains three namespaces: `turbine.core`, `turbine.routes`, `turbine.demos`.
@@ -495,8 +541,9 @@ The package currently contains three namespaces: `turbine.core`, `turbine.routes
 It's designed for interactive use in the REPL.
 
 ```clojure
-user=> (require '[turbine.demos :refer 
-        [scatter-demo splatter-demo select-demo union-demo]])
+user=> (require '[turbine.demos :refer :all])
+nil
+user=> (require '[turbine.core :refer :all])
 nil
 
 user=> (def scatter-in (scatter-demo))
@@ -506,14 +553,29 @@ user=> (scatter-in "hello")
 true
 hello!
 hello!!
+
+user=> (def collect-in (collect-demo))
+#'user/collect-in
+
+user=> (collect-in 1)
+true
+user=> (collect-in 2)
+true
+user=> (collect-in -1)
+true
+user=> (close-topology [collect-in])
+nil
+2
 ```
 
 ## Future Work
 
 There are a number of things to do before an "official" release.
 
-1. Create a `defroute` macro or function (if I can get away with it) for custom routing.
-2. Make transducers optional in the topology specification.
-3. ~~Enable batch computation by creating a topology closing mechanism.~~
-4. Transducers and routes for aggregations and joins.
-5. A command line interface.
+[ ] Create a `defroute` macro or function for custom routing.
+[ ] Make transducers optional in the topology specification.
+[x] Enable batch computation by writing a `close-topology!` function.
+[ ] Create join routes.
+[x] Create a `:collect` route for batch aggregation.
+[ ] Create a streaming aggregation transducer.
+[ ] Create a command line tool that reads a turbine “script” and executes it against a file.

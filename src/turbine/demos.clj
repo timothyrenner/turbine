@@ -66,5 +66,5 @@
 	(first (make-topology
 		[[:in :in1 identity-xform]
 		 [:collect :in1 [:out (map identity)]
-		 		   (fn [a v] (assoc a v (inc (a v 0)))) {}]
+		 		   (fn [a v] (max a v)) 0]
 		 [:sink :out println]])))
