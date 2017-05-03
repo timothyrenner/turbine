@@ -572,10 +572,10 @@ nil
 
 There are a number of things to do before an "official" release.
 
-[ ] Create a `defroute` macro or function for custom routing.
-[ ] Make transducers optional in the topology specification.
-[x] Enable batch computation by writing a `close-topology!` function.
-[ ] Create join routes.
-[x] Create a `:collect` route for batch aggregation.
-[ ] Create a streaming aggregation transducer.
-[ ] Create a command line tool that reads a turbine “script” and executes it against a file.
+- [ ] Create a `defroute` macro or function for custom routing.
+- [ ] Make transducers optional in the topology specification.
+- [x] Enable batch computation by writing a `close-topology!` function.
+- [ ] Create join routes.
+- [x] Create a `:collect` route for batch aggregation.
+- [ ] Create a streaming aggregation transducer.
+- [ ] Create a command line tool that reads a turbine “script” and executes it against a file.
