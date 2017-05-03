@@ -61,3 +61,10 @@
 		 				 [:exc2 double-!-xform]]]
 		 [:gather [:exc1 :exc2] [:ident identity-xform]]
 		 [:sink :ident println]])))
+
+(defn collect-demo []
+	(first (make-topology
+		[[:in :in1 identity-xform]
+		 [:collect :in1 [:out (map identity)]
+		 		   (fn [a v] (assoc a v (inc (a v 0)))) {}]
+		 [:sink :out println]])))
