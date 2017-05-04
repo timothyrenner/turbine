@@ -5,7 +5,7 @@ Turbine is designed for workloads that require complex flows (meaning a branched
 As such it's not a distributed framework: it's a library built to run on a single machine and take advantage of all available cores.
 
 This is _not_ a production system, and isn't designed to compete with any existing frameworks.
-The closest project to it that I've seen is Matz's [streem](https://github.com/matz/streem), which is a DSL for asynchronous stream processing.
+The closest project to it that I've seen are Matz's [streem](https://github.com/matz/streem), which is a DSL for asynchronous stream processing, and [dask](http://dask.pydata.org/en/latest/), which is a dataflow framework for Python.
 Read the "Motivation" section for more details on what turbine does differently and why I think it's useful.
 I do need to mention a couple of things first:
 
@@ -59,10 +59,6 @@ The issue with that is you can't _branch_ a pipe.
 You'll be stuck scanning that big file twice to get what you want.
 Moreover, all of those tools are single core.
 Even if your task _could_ be processed asynchronously, the command line won't be much help.
-
-R's [data.table](https://github.com/Rdatatable/data.table/wiki) or Python's [dask](http://dask.pydata.org/en/latest/) might work because they both operate on disk instead of memory, but they're designed for tabular transformations.
-Anything requiring a more specialized treatmemnt (maybe the file's JSON instead?) and you're stuck writing customized code to read and process the data yourself.
-This is where turbine is designed to work.
 
 Turbine processes data one record at a time, but does so _asynchronously_, and is thus able to leverage all available processing cores to the extent that the processing task allows.
 Transformations are expressed as operations on collections - `map`, `filter`, etc., so there's no boilerplate looping required.
