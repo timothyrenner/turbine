@@ -2,9 +2,17 @@
     (:require [turbine.routes :refer [xform-aliases make-route]]
               [clojure.core.async :refer [chan >!! close!]]))
 
+(defn clone-kw [n kw]
+    """ Clones a keyword into a vector of keywords with different integer 
+        suffixes.
+    """
+    (apply vector 
+        (map (fn [kw x] (-> kw name (str x) keyword)) (repeat kw) (range n))))
+
 (defmacro clone-channel [n alias transducer & rest]
     "Clones a channel specifier, assigning each channel a new alias based on the
-     alias of the root channel alias. 
+     alias of the root channel alias. The channel alias must be a keyword or a 
+     string, and the resulting aliases will be keywords.
      For example,
 
      (clone-channel 2 :exc (map #(str % \"!\")] )

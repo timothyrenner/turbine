@@ -422,6 +422,39 @@ Under the hood `close-topology` passes a sentinel value to the input functions, 
 The routes have logic to listen to when the input channels close, and they in turn close their output channels.
 This ensures all of the channels flush their in-flight values before they close the downstream processors because the `nil` that a closed channel returns only gets pulled _after_ the queue is empty.
 
+### Helpers
+
+One common pattern I use (see [this piece of code](https://github.com/timothyrenner/ProfanityPowerIndex/blob/master/src/profanity_power_index/data_collection.clj#L93)) is to `:spread` some expensive computation across multiple channels (which run in separate threads), then `:union` them together.
+If I want to `:spread` onto a variable number of cores, I'd need to use something like a `for` comprehension to make that happen.
+To make this more convenient, I created a macro/function pair that does just that: `clone-channel` creates a vector of distinct channel specifiers and suppresses evaluation of the transducer function until after the cloning is done, and `clone-kw` clones a keyword into a vector of keywords.
+The keywords produced by `clone-kw` are created the same way as the aliases in `clone-channel`, so the function and macro are meant to complement one another.
+Use them like this:
+
+```clojure
+(require '[turbine.core :refer [make-topology clone-channel clone-kw]])
+
+(make-topology
+  [[:in (map identity)]
+   [:spread :in (clone-channel 5 :compute (map inc))]
+   [:union (clone-kw 5 :compute) [:out (map identity)]]
+   [:sink :out println]])
+
+;; Equivalent topology.
+(make-topology
+  [[:in (map identity)]
+   [:spread :in [[:compute0 (map inc)]
+                 [:compute1 (map inc)]
+                 [:compute2 (map inc)]
+                 [:compute3 (map inc)]
+                 [:compute4 (map inc)]]]
+   [:union [:compute0
+            :compute1
+            :compute2
+            :compute3
+            :compute4]
+            [:out (map identity)]]
+   [:sink :out println]])
+```
 
 ## Examples
 

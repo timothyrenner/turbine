@@ -6,6 +6,14 @@
 (def single-!-xform (map #(str % "!")))
 (def double-!-xform (map #(str % "!!")))
 
+(deftest clone-kw-test
+
+    (testing "Correctly clones a keyword."
+        (let [test-keyword :test
+              test-keyword-clones (clone-kw 2 :test)
+              test-keyword-clones-truth [:test0 :test1]]
+            (is (= test-keyword-clones-truth test-keyword-clones)))))
+
 (deftest clone-channel-test
 
     (testing "Correctly clones a channel declaration."
