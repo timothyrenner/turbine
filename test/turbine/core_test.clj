@@ -6,11 +6,21 @@
 (def single-!-xform (map #(str % "!")))
 (def double-!-xform (map #(str % "!!")))
 
+(deftest clone-channel-test
+
+    (testing "Correctly clones a channel declaration."
+        (let [test-chan-clones 
+                (clone-channel 2 :test-chan :test-transducer :other-stuff)
+              test-chan-clones-truth
+                [[:test-chan0 :test-transducer :other-stuff]
+                 [:test-chan1 :test-transducer :other-stuff]]]
+            (is (= test-chan-clones-truth test-chan-clones)))))
+
 (deftest make-topology-test
 
 	(testing "Properly creates topology with a scatter route."
 		(let [output-chan (chan 5) ; Landing point for the output.
-					scatter-in ; Make the topology, defined as it's input function.
+			  scatter-in ; Make the topology, defined as it's input function.
 					(first 
 						(make-topology 
 							[[:in :in1 (map identity)]

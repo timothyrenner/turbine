@@ -2,15 +2,14 @@
     (:require [turbine.routes :refer [xform-aliases make-route]]
               [clojure.core.async :refer [chan >!! close!]]))
 
-;;;; TODO: UNIT TEST.
-(defmacro clone-channel [[alias transducer & rest] n]
+(defmacro clone-channel [n alias transducer & rest]
     "Clones a channel specifier, assigning each channel a new alias based on the
      alias of the root channel alias. 
      For example,
 
-     (clone-channel [:exc-1 (map #(str % \"!\")] 2)
-     => [[:exc-10 (map #(str % \"!\")]
-         [:exc-11 (map #(str % \"!\")]]
+     (clone-channel 2 :exc (map #(str % \"!\")] )
+     => [[:exc0 (map #(str % \"!\")]
+         [:exc1 (map #(str % \"!\")]]
     "
     ;; The unquote-splice splats the "for" list.
     `[ ~@(for [x (range n)]
@@ -18,7 +17,6 @@
             ;; This merges the additional elements in rest with the new vector.
             (apply vector (-> alias name (str x) keyword) transducer rest))])
 
-;;;; TODO: Unit test.
 (defn- make-in [input-chan]
     (fn [v]
         (if-not 
