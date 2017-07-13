@@ -1,15 +1,23 @@
 (ns turbine.routes
     (:require [clojure.core.async :refer [<!! >!! thread alts!! chan close!]]))
 
-(defmulti xform-aliases first)
+;; This returns a transducer that will inject (map identity) when the length
+;; of the input channel specifier is less than two.
+(defn- alias-injector []
+    (map 
+        (fn [v]
+            (if (> (count v) 1)
+                (subvec v 0 2)
+                [(first v) (map identity)]))))
 
 (defn- fan-out [route-spec]
-    (into {}
-        (map (fn [v] [(first v) (second v)])
-             (nth route-spec 2))))
+    (into {} (alias-injector)
+             (nth route-spec 2)))
 
 (defn- fan-in [route-spec]
-    (into {} [(nth route-spec 2)]))
+    (into {} (alias-injector) [(nth route-spec 2)]))
+
+(defmulti xform-aliases first)
 
 (defmethod xform-aliases :scatter [route-spec]
     (fan-out route-spec))
@@ -30,7 +38,7 @@
     (fan-in route-spec))
 
 (defmethod xform-aliases :in [route-spec]
-    (into {} [(subvec route-spec 1)]))
+    (into {} (alias-injector) [(subvec route-spec 1)]))
 
 (defmethod xform-aliases :collect [route-spec]
     (fan-in route-spec))

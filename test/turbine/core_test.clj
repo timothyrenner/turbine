@@ -7,7 +7,6 @@
 (def double-!-xform (map #(str % "!!")))
 
 (deftest clone-kw-test
-
     (testing "Correctly clones a keyword."
         (let [test-keyword :test
               test-keyword-clones (clone-kw 2 :test)
@@ -191,4 +190,17 @@
 			;; Read and validate the output of the topology.
 			(let [answer (<!! output-chan)
 				  truth {"hi" 2 "there" 1}]
-				(is (= truth answer))))))
+				(is (= truth answer)))))
+	(testing "Properly creates a topology with no transducers."
+		(let [output-chan (chan 5)
+			  topology-in
+			  	(first
+				  	(make-topology
+							[[:in :in1]
+							 [:scatter :in1 [[:chan1] [:chan2] [:chan3]]]
+							 [:union [:chan1 :chan2 :chan3] [:out]]
+							 [:sink :out #(>!! output-chan %)]]))]
+		;; Feed a value to the input topology.
+		(topology-in "hello")
+		(let [answer [(<!! output-chan) (<!! output-chan) (<!! output-chan)]]
+			(is (= ["hello" "hello" "hello"] answer))))))
