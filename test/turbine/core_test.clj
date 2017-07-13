@@ -30,7 +30,7 @@
 			  scatter-in ; Make the topology, defined as it's input function.
 					(first 
 						(make-topology 
-							[[:in :in1 (map identity)]
+							[[:in :in1]
 							 [:scatter :in1 [[:out1 single-!-xform]
 							 			     [:out2 double-!-xform]]]
 							 [:sink :out1 (fn [v] (>!! output-chan v))]
@@ -53,7 +53,7 @@
 			  splatter-in ; Make the topology, defined as it's input function.
 			  (first 
 			  	(make-topology 
-					[[:in :in1 (map identity)]
+					[[:in :in1]
 					 [:splatter :in1 [[:out1 single-!-xform]
 					 				  [:out2 double-!-xform]]]
 					 [:sink :out1 (fn [v] (>!! output-chan v))]
@@ -76,7 +76,7 @@
 			  select-in ; Make the topology, defined as it's input function.
 				(first 
 					(make-topology
-						[[:in :in1 (map identity)]
+						[[:in :in1]
 						 [:select :in1 [[:out1 single-!-xform true]
 						 				[:out2 double-!-xform false]]
 							(fn [x] (Character/isLowerCase (first x)))]
@@ -101,7 +101,7 @@
 			  spread-in ; Make the topology.
 			  	(first
 				  	(make-topology
-					  	[[:in :in1 (map identity)]
+					  	[[:in :in1]
 						 [:spread :in1 [[:out1 single-!-xform]
 						 				[:out2 double-!-xform]]]
 						 [:sink :out1 (fn [v] (>!! output-chan v))]
@@ -130,10 +130,10 @@
 			  union-in ; Make the topology, defined as it's input function.
 				(first 
 					(make-topology
-						[[:in :in1 (map identity)]
+						[[:in :in1]
 						 [:scatter :in1 [[:exc1 single-!-xform]
 						 				 [:exc2 double-!-xform]]]
-						 [:union [:exc1 :exc2] [:ident (map identity)]]
+						 [:union [:exc1 :exc2] [:ident]]
 						 [:sink :ident (fn [v] (>!! output-chan v))]]))]
 	  		;; Feed the input value into the topology.
 			(union-in "Hello")
@@ -153,10 +153,10 @@
 			  gather-in ; Make the topology, defined as it's input function.
 			  	(first
 					(make-topology
-						[[:in :in1 (map identity)]
+						[[:in :in1]
 						 [:scatter :in1 [[:exc1 single-!-xform]
 						 				 [:exc2 double-!-xform]]]
-						 [:gather [:exc1 :exc2] [:ident (map identity)]]
+						 [:gather [:exc1 :exc2] [:ident]]
 						 [:sink :ident (fn [v] (>!! output-chan v))]]))]
 			;; Feed the input value into the topology.
 			(gather-in "Hello")
@@ -175,8 +175,8 @@
 			  collect-in ; Make the topology.
 			  	(first
 				  (make-topology
-				  	[[:in :in1 (map identity)]
-					 [:collect :in1 [:out (map identity)] 
+				  	[[:in :in1]
+					 [:collect :in1 [:out] 
 					 		   (fn [a v] (assoc a v (inc (a v 0)))) {}]
 					 [:sink :out (fn [v] (>!! output-chan v))]]))]
 			;; Feed a couple of input values into the topology.
