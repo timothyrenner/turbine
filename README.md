@@ -54,7 +54,7 @@ The topology specifiers can be seen by `source`-ing the demo functions.
 Suppose you have a CSV file that's too big for memory - like 20G or something like that - and you need to perform some transformations on it that will break it into a couple of files.
 What's the best tool for this work? 
 Well, you can't load it into memory, which means that whatever intermediate stage you have between the initial file and the final files needs to be carefully considered.
-The first think I personally reach for when faced with a data processing task is the command line -  Unix / Linux command line programs are super fast because they're written in C, and they're built to be chained together with the pipe, which sends data through one line at a time, so memory isn't usually an issue (`sort` is a counter example).
+The first thing I personally reach for when faced with a data processing task is the command line -  Unix / Linux command line programs are super fast because they're written in C, and they're built to be chained together with the pipe, which sends data through one line at a time, so memory isn't usually an issue (`sort` is a counter example).
 The issue with that is you can't _branch_ a pipe.
 You'll be stuck scanning that big file twice to get what you want.
 Moreover, all of those tools are single core.
@@ -109,10 +109,9 @@ The alias is used to select the inbound channel for routes further "down" the to
 This is where the collection-oriented semantics enter; a transducer is the _essence_ of a collection operation without the actual collection.
 This makes them exceptionally easy to test since there are no framework components to mock and no restrictions regarding the shape or type of the messages.
 Just use `eduction` on some example messages and you have all of your business logic directly at your disposal for testing, with no need for additional abstractions.
+The transducer is optional; if it's omitted, the "pass-through" transducer `(map identity)` is attached when the topology is created.
 
 Since transducers are composable, each channel's transformations can be represented as a single transducer, greatly simplifying topology specification as well as testing.
-I plan on making the transducer optional, since the values don't always need to be transformed and `(map identity)` gets old pretty quickly.
-It's not implemented yet, though.
 
 `optional` is used for certain routes that select the output channel based on some criteria.
 Currently the only route that uses this is `select`.
@@ -198,7 +197,7 @@ So if `:exc` 1 and 2 come from the scatter example above, you'll see messages co
 
 The gather route reads from multiple input channels and _concatenates_ their messages into a vector that gets passed to a single output channel.
 This route will block until all of the input channels produce values, which makes it a dangerous route to put into a topology; it can plug the whole thing up.
-For batch-type jobs this isn't a concern, but if there's a possibility of data loss for a streaming job it can cause trouble unless all of the input channels are source from the same input (imagine using `scatter` on three separate channels and unifying them later).
+For batch-type jobs this isn't a concern, but if there's a possibility of data loss for a streaming job it can cause trouble unless all of the input channels are sourced from the same input (imagine using `scatter` on three separate channels and unifying them later).
 Here's what it will look like syntactically:
 
 ```clojure
@@ -214,7 +213,7 @@ Here's an example of what this looks like:
 ```
 
 If `exc` 1 and 2 are the outputs of the scatter route above, this route will take messages with one and two exclamation points and concatenate the two strings into a single string.
-This exact scenario is an instance when the gather route would be safe; if you're scattering directly onto two channels then you're guaranteed to get them both into the gather route in the same order, though not necessarily at the same time (if one of the gather's input channels has a more computationally intense transducer than the other).
+This exact scenario is an instance when the gather route would be safe; if you're scattering directly onto two channels then you're guaranteed to get them both into the gather route in the same order, though not necessarily at the same time (if one of the gather's input channels has a more computationally intensive transducer than the other).
 So there will be some blocking, but not _infinite_ blocking.
 
 #### Select
@@ -237,6 +236,10 @@ The selector values are attached to the outbound channel specifiers, so those ha
 [chan-alias xform selector-value]
 ```
 
+**NOTE**: *A transducer must be specified for channel specifiers on this route.*
+`(map identity)` cannot be automatically injected here at the moment.
+This is subject to change.
+
 The selector value is matched against the value returned by applying the dispatch function to the message.
 Here's an example:
 
@@ -250,7 +253,7 @@ This takes an inbound integer message and routes it to the `:evens` channel if t
 
 Note that this can be implemented with a scatter route by attaching `filter` transducers to each of the outbound channels, which makes it a composite route according to the vocabulary I made up.
 
-**NOTE** In a future version the `selector-value` argument of the outbound channel specifier will be optional, and the `selector-fn` values will be hashed to select the outbound channel.
+**NOTE** In a future version the `selector-value` argument of the outbound channel specifier could be optional if by default the `selector-fn` values can be hashed to select the outbound channel.
 
 #### Splatter
 
@@ -321,7 +324,7 @@ The collect specifier is built specifically for batch processing.
 It acts as a reducer, holding the accumulator until the topology is closed before sending it downstream.
 
 ```clojure
-[:collect in-chan-alias out-chan specifier reducer-fn initial-accumulator]
+[:collect in-chan-alias out-chan-specifier reducer-fn initial-accumulator]
 ```
 
 Here there are two additional elements beyond the input alias and the output specifier: the reducer function and initial accumulator.
@@ -339,7 +342,7 @@ The initial accumulator is ... the initial value of the accumulator.
 Here's a concrete example:
 
 ```clojure
-[:collect :integers-in [:max-integer-out (map identity)]
+[:collect :integers-in [:max-integer-out] ; <- (map identity is implicit now).
           (fn [a v] (max a v)) 0]
 ```
 
@@ -434,14 +437,14 @@ Use them like this:
 (require '[turbine.core :refer [make-topology clone-channel clone-kw]])
 
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    [:spread :in1 (clone-channel 5 :compute (map inc))]
-   [:union (clone-kw 5 :compute) [:out (map identity)]]
+   [:union (clone-kw 5 :compute) [:out]]
    [:sink :out println]])
 
 ;; Equivalent topology.
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    [:spread :in1 [[:compute0 (map inc)]
                   [:compute1 (map inc)]
                   [:compute2 (map inc)]
@@ -452,7 +455,7 @@ Use them like this:
             :compute2
             :compute3
             :compute4]
-            [:out (map identity)]]
+            [:out]]
    [:sink :out println]])
 ```
 
@@ -474,7 +477,7 @@ This topology takes a single value, scatters it onto two channels, one appending
 
 ```clojure
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    ;; Scatter clones the messages onto the output channels.
    [:scatter :in1 [[:exc1 (map #(str % "!"))]
                    [:exc2 (map #(str % "!!"))]]]
@@ -482,16 +485,13 @@ This topology takes a single value, scatters it onto two channels, one appending
    [:sink :exc2 println]]))
 ```
 
-You're going to get really tired of looking at `(map identity)`.
-I do plan on making the transducer optional in the near future to avoid this.
-
 ### Splatter
 
 This topology takes a vector input and uses splatter to append a single exclamation point to the first element and two exclamation points to the second.
 
 ```clojure
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    ;; Splatter takes a vector and "splats" it onto the output channels.
    [:splatter :in1 [[:exc1 (map #(str % "!"))]
                     [:exc2 (map #(str % "!!"))]]]
@@ -506,7 +506,7 @@ As previously mentioned, this can be done with scatter and filter.
 
 ```clojure
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    ;; Outbound aliases in a select have an additional element, which is
    ;; matched against the value of the selector function applied to the 
    ;; inbound message.
@@ -524,7 +524,7 @@ This topology takes a single value and alternates between appending one and two 
 
 ```clojure
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    [:spread :in1 [[:exc1 (map #(str % "!"))]
                   [:exc2 (map #(str % "!!"))]]]
    [:sink :exc1 println]
@@ -540,10 +540,10 @@ This topology can also be built with a composition of `map` and `cat` using no r
 
 ```clojure
 (make-topology
-  [[:in :in1 (map identity)]
+  [[:in :in1]
    [:scatter :in1 [[:exc1 (map #(str % "!"))]
                    [:exc2 (map #(str % "!!"))]]]
-   [:union [:exc1 :exc2] [:ident (map identity)]]
+   [:union [:exc1 :exc2] [:ident]]
    [:sink :ident println]])
 ```
 
@@ -555,8 +555,8 @@ When the topology is closed, the maximum value is printed.
 ```clojure
 ;; Doesn't do anything until close-topology is called.
 (make-topology
-  [[:in :in1 (map identity)]
-   [:collect :in1 [:out (map identity)]
+  [[:in :in1]
+   [:collect :in1 [:out]
              (fn [a v] (max a v)) 0]
    [:sink :out println]])
 ```
@@ -602,9 +602,9 @@ nil
 There are a number of things to do before an "official" release.
 
 - [ ] Create a `defroute` macro or function for custom routing.
-- [ ] Make transducers optional in the topology specification.
+- [x] Make transducers optional in the topology specification.
 - [x] Enable batch computation by writing a `close-topology!` function.
 - [ ] Create join routes.
 - [x] Create a `:collect` route for batch aggregation.
-- [ ] Create a streaming aggregation transducer.
-- [ ] Create a command line tool that reads a turbine “script” and executes it against a file.
+- [ ] Create a _streaming_ aggregation transducer?
+- [ ] Create a command line tool that reads a turbine “script” and executes it against a file?
