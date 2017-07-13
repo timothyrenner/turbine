@@ -10,12 +10,11 @@
 (def single-!-xform (map #(str % "!")))
 (def double-!-xform (map #(str % "!!")))
 (def cat-xform (map (fn [[l r]] (str l " " r))))
-(def identity-xform (map identity))
 
 ;;;; DEMO FUNCTIONS. EACH FUNCTION RETURNS AN ENTRY POINT TO THE TOPOLOGY.
 (defn scatter-demo [] 
 	(first (make-topology 
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:scatter :in1 [[:exc1 single-!-xform]
 						 [:exc2 double-!-xform]]]
 		 [:sink :exc1 println]
@@ -23,7 +22,7 @@
 
 (defn splatter-demo []
 	(first (make-topology 
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:splatter :in1 [[:exc1 single-!-xform]
 						  [:exc2 double-!-xform]]]
 		 [:sink :exc1 println]
@@ -31,7 +30,7 @@
 
 (defn select-demo []
 	(first (make-topology
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:select :in1 [[:exc1 single-!-xform true]
 						[:exc2 double-!-xform false]] 
 				  (fn [x] (Character/isLowerCase (first x)))]
@@ -40,7 +39,7 @@
 
 (defn spread-demo []
 	(first (make-topology
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:spread :in1 [[:exc1 single-!-xform]
 		 				[:exc2 double-!-xform]]]
 		 [:sink :exc1 #(println (str "Left: " %))]
@@ -48,23 +47,23 @@
 
 (defn union-demo []
 	(first (make-topology
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:scatter :in1 [[:exc1 single-!-xform]
 						 [:exc2 double-!-xform]]]
-		 [:union [:exc1 :exc2] [:ident identity-xform]]
+		 [:union [:exc1 :exc2] [:ident]]
 		 [:sink :ident println]])))
 
 (defn gather-demo []
 	(first (make-topology
-		[[:in :in1 identity-xform]
+		[[:in :in1]
 		 [:scatter :in1 [[:exc1 single-!-xform]
 		 				 [:exc2 double-!-xform]]]
-		 [:gather [:exc1 :exc2] [:ident identity-xform]]
+		 [:gather [:exc1 :exc2] [:ident]]
 		 [:sink :ident println]])))
 
 (defn collect-demo []
 	(first (make-topology
-		[[:in :in1 identity-xform]
-		 [:collect :in1 [:out (map identity)]
+		[[:in :in1]
+		 [:collect :in1 [:out]
 		 		   (fn [a v] (max a v)) 0]
 		 [:sink :out println]])))
