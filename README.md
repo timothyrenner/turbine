@@ -434,19 +434,19 @@ Use them like this:
 (require '[turbine.core :refer [make-topology clone-channel clone-kw]])
 
 (make-topology
-  [[:in (map identity)]
-   [:spread :in (clone-channel 5 :compute (map inc))]
+  [[:in :in1 (map identity)]
+   [:spread :in1 (clone-channel 5 :compute (map inc))]
    [:union (clone-kw 5 :compute) [:out (map identity)]]
    [:sink :out println]])
 
 ;; Equivalent topology.
 (make-topology
-  [[:in (map identity)]
-   [:spread :in [[:compute0 (map inc)]
-                 [:compute1 (map inc)]
-                 [:compute2 (map inc)]
-                 [:compute3 (map inc)]
-                 [:compute4 (map inc)]]]
+  [[:in :in1 (map identity)]
+   [:spread :in1 [[:compute0 (map inc)]
+                  [:compute1 (map inc)]
+                  [:compute2 (map inc)]
+                  [:compute3 (map inc)]
+                  [:compute4 (map inc)]]]
    [:union [:compute0
             :compute1
             :compute2
